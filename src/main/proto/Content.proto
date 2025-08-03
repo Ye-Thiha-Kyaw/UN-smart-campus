@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+
+option java_package = "com.unsmart.campus.content";
+option java_multiple_files = true;
+
+message ContentChunk {
+  string file_name = 1;
+  bytes data = 2;
+}
+
+message UploadContentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DocumentEdit {
+  string document_id = 1;
+  string user_id = 2;
+  string edit_action = 3;
+  int32 cursor_position = 4;
+  string payload = 5;
+}
+
+service ContentDeliveryService {
+  rpc UploadPresentation(stream ContentChunk) returns (UploadContentResponse);
+  rpc CollaborateOnDocument(stream DocumentEdit) returns (stream DocumentEdit);
+}

@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option java_package = "com.unsmart.campus.attendance";
+option java_multiple_files = true;
+
+message Student {
+  string student_id = 1;
+  string student_name = 2;
+}
+
+message CheckInRequest {
+  string class_id = 1;
+  Student student = 2;
+}
+
+message CheckInResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RollCallRequest {
+  string class_id = 1;
+}
+
+message AttendanceRecord {
+  string student_id = 1;
+  string student_name = 2;
+  string timestamp = 3;
+}
+
+service AttendanceService {
+  rpc CheckInStudent(CheckInRequest) returns (CheckInResponse);
+  rpc StreamAttendanceRecords(RollCallRequest) returns (stream AttendanceRecord);
+}

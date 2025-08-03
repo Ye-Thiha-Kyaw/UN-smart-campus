@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+option java_package = "com.unsmart.campus.assessment";
+option java_multiple_files = true;
+
+message QuizQuestion {
+  string question_id = 1;
+  string question_text = 2;
+  string correct_answer = 3;
+}
+
+message SetQuizRequest {
+  string quiz_id = 1;
+  string class_id = 2;
+  repeated QuizQuestion questions = 3;
+}
+
+message SetQuizResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StudentAnswer {
+  string student_id = 1;
+  string quiz_id = 2;
+  string question_id = 3;
+  string submitted_answer = 4;
+}
+
+message AssessmentResult {
+  string student_id = 1;
+  string quiz_id = 2;
+  int32 score = 3;
+  int32 total_questions = 4;
+}
+
+service AssessmentService {
+  rpc SetQuiz(SetQuizRequest) returns (SetQuizResponse);
+  rpc GetQuizResults(stream StudentAnswer) returns (stream AssessmentResult);
+}
