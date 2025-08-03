@@ -46,7 +46,7 @@ public class AttendanceServer extends AttendanceServiceGrpc.AttendanceServiceImp
         if (attendedStudents.isEmpty()) {
             AttendanceRecord emptyRecord = AttendanceRecord.newBuilder()
                     .setStudentId("SYSTEM")
-                    .setStudentName("No students have checked in yet")
+                    .setStudentName("There is no student have checked in yet")
                     .setTimestamp("")
                     .build();
             responseObserver.onNext(emptyRecord);
