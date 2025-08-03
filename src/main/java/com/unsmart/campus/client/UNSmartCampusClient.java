@@ -17,6 +17,9 @@ import com.unsmart.campus.attendance.*;
 import com.unsmart.campus.content.*;
 import com.unsmart.campus.assessment.*;
 
+ import java.util.HashMap;
+import java.util.Map;
+
 public class UNSmartCampusClient extends JFrame {
     private final JTextArea logArea;
     private final ServiceDiscovery serviceDiscovery;
@@ -32,6 +35,8 @@ public class UNSmartCampusClient extends JFrame {
     private JLabel attendanceStatusLabel;
     private JLabel contentStatusLabel;
     private JLabel assessmentStatusLabel;
+    
+   
 
     public UNSmartCampusClient() {
         setTitle("UNSmart-Campus Client");
@@ -206,6 +211,7 @@ public class UNSmartCampusClient extends JFrame {
         try {
             AttendanceServiceGrpc.AttendanceServiceStub stub =
                     AttendanceServiceGrpc.newStub(channel);
+
             RollCallRequest request = RollCallRequest.newBuilder()
                     .setClassId(classId)
                     .build();
@@ -213,12 +219,8 @@ public class UNSmartCampusClient extends JFrame {
             stub.streamAttendanceRecords(request, new StreamObserver<AttendanceRecord>() {
                 @Override
                 public void onNext(AttendanceRecord record) {
-                    if (record.getStudentId().equals("SYSTEM")) {
-                        appendLog("System: " + record.getStudentName());
-                    } else {
-                        appendLog("Live Roll Call: " + record.getStudentName() +
-                                " checked in at " + record.getTimestamp());
-                    }
+                    appendLog("Live Roll Call: " + record.getStudentName() +
+                            " checked in at " + record.getTimestamp());
                 }
 
                 @Override
@@ -375,63 +377,80 @@ public class UNSmartCampusClient extends JFrame {
     }
 
     private void handleGetResults() {
-        ManagedChannel channel = getChannel("AssessmentService");
-        if (channel == null) return;
+    ManagedChannel channel = getChannel("AssessmentService");
+    if (channel == null) return;
 
-        try {
-            AssessmentServiceGrpc.AssessmentServiceStub stub =
-                    AssessmentServiceGrpc.newStub(channel);
+    try {
+        AssessmentServiceGrpc.AssessmentServiceStub stub = 
+                AssessmentServiceGrpc.newStub(channel);
 
-            StreamObserver<AssessmentResult> responseObserver =
-                    new StreamObserver<AssessmentResult>() {
-                        @Override
-                        public void onNext(AssessmentResult result) {
-                            appendLog("Quiz Result: Student " + result.getStudentId() +
-                                    " scored " + result.getScore() + "/" + result.getTotalQuestions());
-                        }
+        // Track scores per student
+        Map<String, Integer> studentScores = new HashMap<>();
+        Map<String, Integer> totalQuestions = new HashMap<>();
 
-                        @Override
-                        public void onError(Throwable t) {
-                            appendLog("Results error: " + t.getMessage());
-                        }
+        StreamObserver<AssessmentResult> responseObserver =
+                new StreamObserver<AssessmentResult>() {
+                    @Override
+                    public void onNext(AssessmentResult result) {
+                        String studentId = result.getStudentId();
+                        studentScores.merge(studentId, result.getScore(), Integer::sum);
+                        // Only set the total questions once per student
+                        totalQuestions.putIfAbsent(studentId, result.getTotalQuestions());
+                    }
 
-                        @Override
-                        public void onCompleted() {
-                            appendLog("Results stream completed");
-                        }
-                    };
+                    @Override
+                    public void onError(Throwable t) {
+                        appendLog("Error: " + t.getMessage());
+                    }
 
-            StreamObserver<StudentAnswer> requestObserver =
-                    stub.getQuizResults(responseObserver);
+                    @Override
+                    public void onCompleted() {
+                        // Print final aggregated results
+                        studentScores.forEach((studentId, score) -> {
+                            appendLog("Quiz Result: Student " + studentId + 
+                                    " scored " + score + "/" + totalQuestions.get(studentId));
+                        });
+                    }
+                };
 
-            // Simulate student answers
-            requestObserver.onNext(StudentAnswer.newBuilder()
-                    .setStudentId("S12345")
-                    .setQuizId("QUIZ1")
-                    .setQuestionId("Q1")
-                    .setSubmittedAnswer("4")
-                    .build());
+        StreamObserver<StudentAnswer> requestObserver =
+                stub.getQuizResults(responseObserver);
 
-            requestObserver.onNext(StudentAnswer.newBuilder()
-                    .setStudentId("S12345")
-                    .setQuizId("QUIZ1")
-                    .setQuestionId("Q2")
-                    .setSubmittedAnswer("Paris")
-                    .build());
+        // Student S12345 (1 correct, 1 wrong)
+        requestObserver.onNext(StudentAnswer.newBuilder()
+                .setStudentId("S12345")
+                .setQuizId("QUIZ1")
+                .setQuestionId("Q1")
+                .setSubmittedAnswer("4")  // Correct
+                .build());
 
-            requestObserver.onNext(StudentAnswer.newBuilder()
-                    .setStudentId("S67890")
-                    .setQuizId("QUIZ1")
-                    .setQuestionId("Q1")
-                    .setSubmittedAnswer("5")
-                    .build());
+        requestObserver.onNext(StudentAnswer.newBuilder()
+                .setStudentId("S12345")
+                .setQuizId("QUIZ1")
+                .setQuestionId("Q2")
+                .setSubmittedAnswer("London")  // Wrong (should be "Paris")
+                .build());
 
-            requestObserver.onCompleted();
-        } catch (Exception e) {
-            appendLog("Error getting results: " + e.getMessage());
-            channel.shutdown();
-        }
+        // Student S67890 (all correct)
+        requestObserver.onNext(StudentAnswer.newBuilder()
+                .setStudentId("S67890")
+                .setQuizId("QUIZ1")
+                .setQuestionId("Q1")
+                .setSubmittedAnswer("4")  // Correct
+                .build());
+
+        requestObserver.onNext(StudentAnswer.newBuilder()
+                .setStudentId("S67890")
+                .setQuizId("QUIZ1")
+                .setQuestionId("Q2")
+                .setSubmittedAnswer("Paris")  // Correct
+                .build());
+
+        requestObserver.onCompleted();
+    } catch (Exception e) {
+        appendLog("Error: " + e.getMessage());
     }
+}
 
     private void appendLog(String message) {
         SwingUtilities.invokeLater(() -> {
