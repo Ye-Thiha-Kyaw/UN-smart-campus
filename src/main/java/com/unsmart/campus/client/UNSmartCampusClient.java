@@ -21,13 +21,13 @@ public class UNSmartCampusClient extends JFrame {
     private final JTextArea logArea;
     private final ServiceDiscovery serviceDiscovery;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
-    
+
     // Input fields
     private JTextField studentIdField;
     private JTextField studentNameField;
     private JTextField classIdField;
     private JTextField quizIdField;
-    
+
     // Status labels
     private JLabel attendanceStatusLabel;
     private JLabel contentStatusLabel;
@@ -85,23 +85,23 @@ public class UNSmartCampusClient extends JFrame {
         // Input panel
         JPanel inputPanel = new JPanel(new GridLayout(5, 2, 5, 5));
         inputPanel.setBorder(BorderFactory.createTitledBorder("Input Parameters"));
-        
+
         inputPanel.add(new JLabel("Class ID:"));
         classIdField = new JTextField("CS4001");
         inputPanel.add(classIdField);
-        
+
         inputPanel.add(new JLabel("Student ID:"));
         studentIdField = new JTextField("S12345");
         inputPanel.add(studentIdField);
-        
+
         inputPanel.add(new JLabel("Student Name:"));
         studentNameField = new JTextField("John Doe");
         inputPanel.add(studentNameField);
-        
+
         inputPanel.add(new JLabel("Quiz ID:"));
         quizIdField = new JTextField("QUIZ1");
         inputPanel.add(quizIdField);
-        
+
         JButton clearLogButton = new JButton("Clear Log");
         clearLogButton.addActionListener(e -> logArea.setText(""));
         inputPanel.add(clearLogButton);
@@ -113,11 +113,11 @@ public class UNSmartCampusClient extends JFrame {
         attendanceStatusLabel = new JLabel("Attendance: ❌", SwingConstants.CENTER);
         contentStatusLabel = new JLabel("Content: ❌", SwingConstants.CENTER);
         assessmentStatusLabel = new JLabel("Assessment: ❌", SwingConstants.CENTER);
-        
+
         statusPanel.add(attendanceStatusLabel);
         statusPanel.add(contentStatusLabel);
         statusPanel.add(assessmentStatusLabel);
-        
+
         add(statusPanel, BorderLayout.SOUTH);
 
         // Initialize service discovery
@@ -171,19 +171,19 @@ public class UNSmartCampusClient extends JFrame {
 
         ManagedChannel channel = getChannel("AttendanceService");
         if (channel == null) return;
-        
+
         try {
-            AttendanceServiceGrpc.AttendanceServiceBlockingStub stub = 
-                AttendanceServiceGrpc.newBlockingStub(channel);
-            
+            AttendanceServiceGrpc.AttendanceServiceBlockingStub stub =
+                    AttendanceServiceGrpc.newBlockingStub(channel);
+
             CheckInRequest request = CheckInRequest.newBuilder()
-                .setClassId(classId)
-                .setStudent(Student.newBuilder()
-                    .setStudentId(studentId)
-                    .setStudentName(studentName)
-                    .build())
-                .build();
-            
+                    .setClassId(classId)
+                    .setStudent(Student.newBuilder()
+                            .setStudentId(studentId)
+                            .setStudentName(studentName)
+                            .build())
+                    .build();
+
             CheckInResponse response = stub.checkInStudent(request);
             appendLog("Check-in response: " + response.getMessage());
         } catch (StatusRuntimeException e) {
@@ -204,18 +204,21 @@ public class UNSmartCampusClient extends JFrame {
         if (channel == null) return;
 
         try {
-            AttendanceServiceGrpc.AttendanceServiceStub stub = 
-                AttendanceServiceGrpc.newStub(channel);
-            
+            AttendanceServiceGrpc.AttendanceServiceStub stub =
+                    AttendanceServiceGrpc.newStub(channel);
             RollCallRequest request = RollCallRequest.newBuilder()
-                .setClassId(classId)
-                .build();
-            
+                    .setClassId(classId)
+                    .build();
+
             stub.streamAttendanceRecords(request, new StreamObserver<AttendanceRecord>() {
                 @Override
                 public void onNext(AttendanceRecord record) {
-                    appendLog("Live Roll Call: " + record.getStudentName() + 
-                        " checked in at " + record.getTimestamp());
+                    if (record.getStudentId().equals("SYSTEM")) {
+                        appendLog("System: " + record.getStudentName());
+                    } else {
+                        appendLog("Live Roll Call: " + record.getStudentName() +
+                                " checked in at " + record.getTimestamp());
+                    }
                 }
 
                 @Override
@@ -239,41 +242,41 @@ public class UNSmartCampusClient extends JFrame {
         if (channel == null) return;
 
         try {
-            ContentDeliveryServiceGrpc.ContentDeliveryServiceStub stub = 
-                ContentDeliveryServiceGrpc.newStub(channel);
-            
-            StreamObserver<UploadContentResponse> responseObserver = 
-                new StreamObserver<UploadContentResponse>() {
-                    @Override
-                    public void onNext(UploadContentResponse response) {
-                        appendLog("Upload response: " + response.getMessage());
-                    }
+            ContentDeliveryServiceGrpc.ContentDeliveryServiceStub stub =
+                    ContentDeliveryServiceGrpc.newStub(channel);
 
-                    @Override
-                    public void onError(Throwable t) {
-                        appendLog("Upload failed: " + t.getMessage());
-                    }
+            StreamObserver<UploadContentResponse> responseObserver =
+                    new StreamObserver<UploadContentResponse>() {
+                        @Override
+                        public void onNext(UploadContentResponse response) {
+                            appendLog("Upload response: " + response.getMessage());
+                        }
 
-                    @Override
-                    public void onCompleted() {
-                        appendLog("Upload completed");
-                    }
-                };
-            
-            StreamObserver<ContentChunk> requestObserver = 
-                stub.uploadPresentation(responseObserver);
-            
+                        @Override
+                        public void onError(Throwable t) {
+                            appendLog("Upload failed: " + t.getMessage());
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            appendLog("Upload completed");
+                        }
+                    };
+
+            StreamObserver<ContentChunk> requestObserver =
+                    stub.uploadPresentation(responseObserver);
+
             // Simulate sending a file in chunks
             requestObserver.onNext(ContentChunk.newBuilder()
-                .setFileName("lecture1.ppt")
-                .setData(ByteString.copyFromUtf8("First chunk of data"))
-                .build());
-            
+                    .setFileName("lecture1.ppt")
+                    .setData(ByteString.copyFromUtf8("First chunk of data"))
+                    .build());
+
             requestObserver.onNext(ContentChunk.newBuilder()
-                .setFileName("lecture1.ppt")
-                .setData(ByteString.copyFromUtf8("Second chunk of data"))
-                .build());
-            
+                    .setFileName("lecture1.ppt")
+                    .setData(ByteString.copyFromUtf8("Second chunk of data"))
+                    .build());
+
             requestObserver.onCompleted();
         } catch (Exception e) {
             appendLog("Error uploading content: " + e.getMessage());
@@ -286,46 +289,46 @@ public class UNSmartCampusClient extends JFrame {
         if (channel == null) return;
 
         try {
-            ContentDeliveryServiceGrpc.ContentDeliveryServiceStub stub = 
-                ContentDeliveryServiceGrpc.newStub(channel);
-            
-            StreamObserver<DocumentEdit> responseObserver = 
-                new StreamObserver<DocumentEdit>() {
-                    @Override
-                    public void onNext(DocumentEdit edit) {
-                        appendLog("Collaboration update: " + edit.getUserId() + 
-                            " - " + edit.getEditAction() + ": " + edit.getPayload());
-                    }
+            ContentDeliveryServiceGrpc.ContentDeliveryServiceStub stub =
+                    ContentDeliveryServiceGrpc.newStub(channel);
 
-                    @Override
-                    public void onError(Throwable t) {
-                        appendLog("Collaboration error: " + t.getMessage());
-                    }
+            StreamObserver<DocumentEdit> responseObserver =
+                    new StreamObserver<DocumentEdit>() {
+                        @Override
+                        public void onNext(DocumentEdit edit) {
+                            appendLog("Collaboration update: " + edit.getUserId() +
+                                    " - " + edit.getEditAction() + ": " + edit.getPayload());
+                        }
 
-                    @Override
-                    public void onCompleted() {
-                        appendLog("Collaboration ended");
-                    }
-                };
-            
-            StreamObserver<DocumentEdit> requestObserver = 
-                stub.collaborateOnDocument(responseObserver);
-            
+                        @Override
+                        public void onError(Throwable t) {
+                            appendLog("Collaboration error: " + t.getMessage());
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            appendLog("Collaboration ended");
+                        }
+                    };
+
+            StreamObserver<DocumentEdit> requestObserver =
+                    stub.collaborateOnDocument(responseObserver);
+
             // Simulate some edits
             requestObserver.onNext(DocumentEdit.newBuilder()
-                .setDocumentId("doc1")
-                .setUserId("teacher1")
-                .setEditAction("insert")
-                .setPayload("Hello class!")
-                .build());
-            
+                    .setDocumentId("doc1")
+                    .setUserId("teacher1")
+                    .setEditAction("insert")
+                    .setPayload("Hello class!")
+                    .build());
+
             requestObserver.onNext(DocumentEdit.newBuilder()
-                .setDocumentId("doc1")
-                .setUserId("student1")
-                .setEditAction("insert")
-                .setPayload("Great lesson!")
-                .build());
-            
+                    .setDocumentId("doc1")
+                    .setUserId("student1")
+                    .setEditAction("insert")
+                    .setPayload("Great lesson!")
+                    .build());
+
             requestObserver.onCompleted();
         } catch (Exception e) {
             appendLog("Error collaborating: " + e.getMessage());
@@ -346,22 +349,22 @@ public class UNSmartCampusClient extends JFrame {
         if (channel == null) return;
 
         try {
-            AssessmentServiceGrpc.AssessmentServiceBlockingStub stub = 
-                AssessmentServiceGrpc.newBlockingStub(channel);
-            
+            AssessmentServiceGrpc.AssessmentServiceBlockingStub stub =
+                    AssessmentServiceGrpc.newBlockingStub(channel);
+
             SetQuizRequest request = SetQuizRequest.newBuilder()
-                .setQuizId(quizId)
-                .setClassId(classId)
-                .addQuestions(QuizQuestion.newBuilder()
-                    .setQuestionId("Q1")
-                    .setQuestionText("What is 2+2?")
-                    .setCorrectAnswer("4"))
-                .addQuestions(QuizQuestion.newBuilder()
-                    .setQuestionId("Q2")
-                    .setQuestionText("Capital of France?")
-                    .setCorrectAnswer("Paris"))
-                .build();
-            
+                    .setQuizId(quizId)
+                    .setClassId(classId)
+                    .addQuestions(QuizQuestion.newBuilder()
+                            .setQuestionId("Q1")
+                            .setQuestionText("What is 2+2?")
+                            .setCorrectAnswer("4"))
+                    .addQuestions(QuizQuestion.newBuilder()
+                            .setQuestionId("Q2")
+                            .setQuestionText("Capital of France?")
+                            .setCorrectAnswer("Paris"))
+                    .build();
+
             SetQuizResponse response = stub.setQuiz(request);
             appendLog("Set Quiz response: " + response.getMessage());
         } catch (StatusRuntimeException e) {
@@ -376,53 +379,53 @@ public class UNSmartCampusClient extends JFrame {
         if (channel == null) return;
 
         try {
-            AssessmentServiceGrpc.AssessmentServiceStub stub = 
-                AssessmentServiceGrpc.newStub(channel);
-            
-            StreamObserver<AssessmentResult> responseObserver = 
-                new StreamObserver<AssessmentResult>() {
-                    @Override
-                    public void onNext(AssessmentResult result) {
-                        appendLog("Quiz Result: Student " + result.getStudentId() + 
-                            " scored " + result.getScore() + "/" + result.getTotalQuestions());
-                    }
+            AssessmentServiceGrpc.AssessmentServiceStub stub =
+                    AssessmentServiceGrpc.newStub(channel);
 
-                    @Override
-                    public void onError(Throwable t) {
-                        appendLog("Results error: " + t.getMessage());
-                    }
+            StreamObserver<AssessmentResult> responseObserver =
+                    new StreamObserver<AssessmentResult>() {
+                        @Override
+                        public void onNext(AssessmentResult result) {
+                            appendLog("Quiz Result: Student " + result.getStudentId() +
+                                    " scored " + result.getScore() + "/" + result.getTotalQuestions());
+                        }
 
-                    @Override
-                    public void onCompleted() {
-                        appendLog("Results stream completed");
-                    }
-                };
-            
-            StreamObserver<StudentAnswer> requestObserver = 
-                stub.getQuizResults(responseObserver);
-            
+                        @Override
+                        public void onError(Throwable t) {
+                            appendLog("Results error: " + t.getMessage());
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                            appendLog("Results stream completed");
+                        }
+                    };
+
+            StreamObserver<StudentAnswer> requestObserver =
+                    stub.getQuizResults(responseObserver);
+
             // Simulate student answers
             requestObserver.onNext(StudentAnswer.newBuilder()
-                .setStudentId("S12345")
-                .setQuizId("QUIZ1")
-                .setQuestionId("Q1")
-                .setSubmittedAnswer("4")
-                .build());
-            
+                    .setStudentId("S12345")
+                    .setQuizId("QUIZ1")
+                    .setQuestionId("Q1")
+                    .setSubmittedAnswer("4")
+                    .build());
+
             requestObserver.onNext(StudentAnswer.newBuilder()
-                .setStudentId("S12345")
-                .setQuizId("QUIZ1")
-                .setQuestionId("Q2")
-                .setSubmittedAnswer("Paris")
-                .build());
-            
+                    .setStudentId("S12345")
+                    .setQuizId("QUIZ1")
+                    .setQuestionId("Q2")
+                    .setSubmittedAnswer("Paris")
+                    .build());
+
             requestObserver.onNext(StudentAnswer.newBuilder()
-                .setStudentId("S67890")
-                .setQuizId("QUIZ1")
-                .setQuestionId("Q1")
-                .setSubmittedAnswer("5")
-                .build());
-            
+                    .setStudentId("S67890")
+                    .setQuizId("QUIZ1")
+                    .setQuestionId("Q1")
+                    .setSubmittedAnswer("5")
+                    .build());
+
             requestObserver.onCompleted();
         } catch (Exception e) {
             appendLog("Error getting results: " + e.getMessage());

@@ -26,81 +26,79 @@ public class AttendanceServer extends AttendanceServiceGrpc.AttendanceServiceImp
     public void checkInStudent(CheckInRequest request, StreamObserver<CheckInResponse> responseObserver) {
         Student student = request.getStudent();
         attendedStudents.add(student);
-        
+
         CheckInResponse response = CheckInResponse.newBuilder()
-            .setSuccess(true)
-            .setMessage("Student " + student.getStudentName() + " checked in successfully")
-            .build();
-        
+                .setSuccess(true)
+                .setMessage("Student " + student.getStudentName() + " checked in successfully")
+                .build();
+
         responseObserver.onNext(response);
         responseObserver.onCompleted();
-        
+
         logger.info("Student checked in: " + student.getStudentName());
     }
 
-//    @Override
-//    public void streamAttendanceRecords(RollCallRequest request, StreamObserver<AttendanceRecord> responseObserver) {
-//        scheduler.scheduleAtFixedRate(() -> {
-//            try {
-//                if (attendedStudents.isEmpty()) {
-//                    logger.info("No students have checked in yet");
-//                    return;
-//                }
-//                
-//                for (Student student : attendedStudents) {
-//                    AttendanceRecord record = AttendanceRecord.newBuilder()
-//                        .setStudentId(student.getStudentId())
-//                        .setStudentName(student.getStudentName())
-//                        .setTimestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME))
-//                        .build();
-//                    responseObserver.onNext(record);
-//                }
-//            } catch (Exception e) {
-//                logger.warning("Error streaming records: " + e.getMessage());
-//                scheduler.shutdown();
-//                responseObserver.onError(e);
-//            }
-//        }, 0, 5, TimeUnit.SECONDS);
-//    }
     @Override
-public void streamAttendanceRecords(RollCallRequest request, 
-    StreamObserver<AttendanceRecord> responseObserver) {
-    
-    // Send only new check-ins since last stream
-    Set<Student> alreadySent = new HashSet<>();
-    
-    scheduler.scheduleAtFixedRate(() -> {
-        try {
-            synchronized (attendedStudents) {
-                for (Student student : attendedStudents) {
-                    if (!alreadySent.contains(student)) {
-                        AttendanceRecord record = AttendanceRecord.newBuilder()
-                            .setStudentId(student.getStudentId())
-                            .setStudentName(student.getStudentName())
-                            .setTimestamp(LocalDateTime.now()
-                                .format(DateTimeFormatter.ISO_LOCAL_TIME))
-                            .build();
-                        responseObserver.onNext(record);
-                        alreadySent.add(student);
+    public void streamAttendanceRecords(RollCallRequest request,
+                                        StreamObserver<AttendanceRecord> responseObserver) {
+
+        // Send initial status if no students
+        if (attendedStudents.isEmpty()) {
+            AttendanceRecord emptyRecord = AttendanceRecord.newBuilder()
+                    .setStudentId("SYSTEM")
+                    .setStudentName("No students have checked in yet")
+                    .setTimestamp("")
+                    .build();
+            responseObserver.onNext(emptyRecord);
+        }
+
+        Set<Student> alreadySent = new HashSet<>();
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                synchronized (attendedStudents) {
+                    // Send message if still empty after delay
+                    if (attendedStudents.isEmpty()) {
+                        AttendanceRecord emptyRecord = AttendanceRecord.newBuilder()
+                                .setStudentId("SYSTEM")
+                                .setStudentName("No students have checked in yet (periodic update)")
+                                .setTimestamp("")
+                                .build();
+                        responseObserver.onNext(emptyRecord);
+                        return;
+                    }
+
+                    for (Student student : attendedStudents) {
+                        if (!alreadySent.contains(student)) {
+                            AttendanceRecord record = AttendanceRecord.newBuilder()
+                                    .setStudentId(student.getStudentId())
+                                    .setStudentName(student.getStudentName())
+                                    .setTimestamp(LocalDateTime.now()
+                                            .format(DateTimeFormatter.ISO_LOCAL_TIME))
+                                    .build();
+                            responseObserver.onNext(record);
+                            alreadySent.add(student);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                logger.warning("Error streaming records: " + e.getMessage());
+                scheduler.shutdown();
             }
-        } catch (Exception e) {
-            logger.warning("Error streaming records: " + e.getMessage());
-            scheduler.shutdown();
-        }
-    }, 0, 5, TimeUnit.SECONDS);
-}
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
+
+
 
     public void start() throws IOException {
         server = ServerBuilder.forPort(PORT)
-            .addService(this)
-            .build()
-            .start();
-        
-        ServiceRegistration.registerService("AttendanceService", "_grpc._tcp.local.", PORT, 
-            "Attendance service for SDG 4: Quality Education");
-        
+                .addService(this)
+                .build()
+                .start();
+
+        ServiceRegistration.registerService("AttendanceService", "_grpc._tcp.local.", PORT,
+                "Attendance service for SDG 4: Quality Education");
+
         Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
         logger.info("Attendance Server started, listening on port " + PORT);
     }
