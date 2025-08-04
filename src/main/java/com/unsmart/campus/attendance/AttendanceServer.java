@@ -39,53 +39,55 @@ public class AttendanceServer extends AttendanceServiceGrpc.AttendanceServiceImp
     }
 
     @Override
-    public void streamAttendanceRecords(RollCallRequest request,
-                                        StreamObserver<AttendanceRecord> responseObserver) {
-
-        // Send initial status if no students
-        if (attendedStudents.isEmpty()) {
-            AttendanceRecord emptyRecord = AttendanceRecord.newBuilder()
-                    .setStudentId("SYSTEM")
-                    .setStudentName("There is no student have checked in yet")
-                    .setTimestamp("")
-                    .build();
-            responseObserver.onNext(emptyRecord);
-        }
-
-        Set<Student> alreadySent = new HashSet<>();
-        scheduler.scheduleAtFixedRate(() -> {
-            try {
-                synchronized (attendedStudents) {
-                    // Send message if still empty after delay
-                    if (attendedStudents.isEmpty()) {
-                        AttendanceRecord emptyRecord = AttendanceRecord.newBuilder()
-                                .setStudentId("SYSTEM")
-                                .setStudentName("No students have checked in yet (periodic update)")
-                                .setTimestamp("")
-                                .build();
-                        responseObserver.onNext(emptyRecord);
-                        return;
-                    }
-
+public void streamAttendanceRecords(RollCallRequest request, 
+    StreamObserver<AttendanceRecord> responseObserver) {
+    
+    // Create a scheduler for this specific stream
+    ScheduledExecutorService streamScheduler = Executors.newSingleThreadScheduledExecutor();
+    
+    // Start streaming
+    streamScheduler.scheduleAtFixedRate(() -> {
+        try {
+            synchronized (attendedStudents) {
+                if (attendedStudents.isEmpty()) {
+                    // Send heartbeat if no students
+                    AttendanceRecord heartbeat = AttendanceRecord.newBuilder()
+                        .setStudentId("SYSTEM")
+                        .setStudentName("No students checked in yet")
+                        .setTimestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME))
+                        .build();
+                    responseObserver.onNext(heartbeat);
+                } else {
+                    // Send all current attendance records
                     for (Student student : attendedStudents) {
-                        if (!alreadySent.contains(student)) {
-                            AttendanceRecord record = AttendanceRecord.newBuilder()
-                                    .setStudentId(student.getStudentId())
-                                    .setStudentName(student.getStudentName())
-                                    .setTimestamp(LocalDateTime.now()
-                                            .format(DateTimeFormatter.ISO_LOCAL_TIME))
-                                    .build();
-                            responseObserver.onNext(record);
-                            alreadySent.add(student);
-                        }
+                        AttendanceRecord record = AttendanceRecord.newBuilder()
+                            .setStudentId(student.getStudentId())
+                            .setStudentName(student.getStudentName())
+                            .setTimestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME))
+                            .build();
+                        responseObserver.onNext(record);
                     }
                 }
-            } catch (Exception e) {
-                logger.warning("Error streaming records: " + e.getMessage());
-                scheduler.shutdown();
             }
-        }, 0, 5, TimeUnit.SECONDS);
-    }
+        } catch (Exception e) {
+            logger.warning("Streaming error: " + e.getMessage());
+            streamScheduler.shutdown();
+            responseObserver.onError(e);
+        }
+    }, 0, 5, TimeUnit.SECONDS);
+    
+    // Cleanup when client disconnects
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        streamScheduler.shutdown();
+        try {
+            if (!streamScheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                streamScheduler.shutdownNow();
+            }
+        } catch (InterruptedException ie) {
+            streamScheduler.shutdownNow();
+        }
+    }));
+}
 
 
 
