@@ -92,15 +92,15 @@ public class UNSmartCampusClient extends JFrame {
         inputPanel.setBorder(BorderFactory.createTitledBorder("Input Parameters"));
 
         inputPanel.add(new JLabel("Class ID:"));
-        classIdField = new JTextField("CS4001");
+        classIdField = new JTextField("CS-Higher Diploma-01");
         inputPanel.add(classIdField);
 
         inputPanel.add(new JLabel("Student ID:"));
-        studentIdField = new JTextField("S12345");
+        studentIdField = new JTextField("x24148393");
         inputPanel.add(studentIdField);
 
         inputPanel.add(new JLabel("Student Name:"));
-        studentNameField = new JTextField("John Doe");
+        studentNameField = new JTextField("Ye Thiha Kyaw");
         inputPanel.add(studentNameField);
 
         inputPanel.add(new JLabel("Quiz ID:"));
